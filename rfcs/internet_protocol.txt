@@ -1,0 +1,162 @@
+RFC 791 INTERNET PROTOCOL
+
+Scope
+For delivering a package of bits (an internet datagram) from a source to a destionation.
+
+Interfaces
+Called on by host-to-host protocols in an internet environment
+I.e. a TCP module would call on the the internet module to take a TCP segment as the data portion of an internet datagram
+
+Operation
+internet module - resides in each host and gateway, and share common rules for two basic functions: addressing and fragmentation
+	addressing - uses the addresses carried in the internet header to transmit internet datagrams toward their destinations
+	fragmentation - uses fields in the internet header to fragment and reassemble internet datagrams when necessary for transmission through "small packet" networks.
+
+internet protocol treats each internet datagram as an independent entity and unrelated to other internet datagrams.  four key mechanisms in providing its service
+	Type of Service - second byte to indicate a wide range of fields.  hasn't been of much use outside the DoD networks
+	Time to Live - an upper bound on the lifetime of the datagram.  set by the sender and reduced at the points along the route
+	Options - includes provisions for timestamps, security, and special routing
+	Header Checksum - provides verification that info has been transmitted correctly
+	
+ip is not a reliable communication facility - no ack, no error control, no retransmissions, or flow control
+icmp can be used to report errors
+
+OVERVIEW
+2.1	Relation to Other Protocols
+
+	 +------+ +-----+ +-----+     +-----+
+	 |Telnet| | FTP | | TFTP| ... | ... |
+	 +------+ +-----+ +-----+     +-----+
+		   |   |         |           |
+		  +-----+     +-----+     +-----+
+		  | TCP |     | UDP | ... | ... |
+		  +-----+     +-----+     +-----+
+			 |           |           |
+		  +--------------------------+----+
+		  |    Internet Protocol & ICMP   |
+		  +--------------------------+----+
+						 |
+			+---------------------------+
+			|   Local Network Protocol  |
+			+---------------------------+
+
+			 Protocol Relationships
+
+Internet protocol interfaces on one side to the higher level
+  host-to-host protocols and on the other side to the local network
+  protocol
+
+2.2	Model of Operation
+	a.	we suppose transmission will involve one intermediate gateway
+	b.	sending application is prepares the data for transmission and calls local internet module to send that data as a datagram and passes destination address and other parameters as arguments of the call
+	c.	datagram arrives at gateway host wrapped in local network header.  
+	d.	local network interface strips off this header and turns datagram over to internet module.
+	e.	internet module determines from internet address that datagram is to be forwarded to another host in a second network.
+	f.	internet module determines a local net address for the destination host and calls on local network interface for that network to send the datagram
+	g.	local network interface creates a local network header and attaches datagram sending result to destination host
+	h.	repeat step d.
+	i.	internet module determines datagram is for an application on this host.  
+	j.	internet module passes the data to the application program, passing the source address and other parameters as results of a system call.
+	
+	Application                                           Application
+   Program                                                   Program
+         \                                                   /
+       Internet Module      Internet Module      Internet Module
+             \                 /       \                /
+             LNI-1          LNI-1      LNI-2         LNI-2
+                \           /             \          /
+               Local Network 1           Local Network 2
+			   
+2.3	Function Description
+
+Addressing
+	in the context of names (indicate what we seek), addresses (where it is), routes (how to get there), the internet protocol deals primarily with addresses.  higher level protocols are responsible for mapping names to 
+	addresses while lower level protocols are responsible for mapping addresses to routes.
+	Care must be taken with mapping internet addresses to local net addresses.  Three formats of internet addresses where n denotes network address bit, and l denotes local address bit
+		The first type (or class a) of address has a 7-bit network number and a 24-bit local address.  Range 0.0.0.0 -> 127.255.255.255
+
+							   1                   2                   3
+		   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+		  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+		  |0|   NETWORK   |                Local Address                  |
+		  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+								 Class A Address
+
+	   The second type (or class b) of address has a 14-bit network number and a 16-bit local address. Range 128.0.0.0 -> 191.255.255.255
+
+							   1                   2                   3
+		   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+		  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+		  |1 0|           NETWORK         |          Local Address        |
+		  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+								 Class B Address
+
+	   The third type (or class c) of address has a 21-bit network number and a 8-bit local address. 192.0.0.0 -> 223.255.255.255
+
+							   1                   2                   3
+		   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+		  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+		  |1 1 0|                    NETWORK              | Local Address |
+		  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+								 Class C Address
+								 
+Fragmentation
+	Necessary when datagram originates in a local net that allows a large packet size and must traverse a local net that limits packets to smaller size
+	datagram can be marked "don't fragment" which means it will be discarded if it can't be delivered any other way'
+	MTU - The maximum sized datagram that can be transmitted through the next network 
+	must be able to break a datagram into an arbitrary number of pieces that can be later reassembled.  this is determined by the following fields:
+		identification field - ensure fragments of different datagrams aren't mixed
+		fragment offest field - tells the receiver the position of a fragment in the original datagram.  together with the length, tells the receiver the portion covered by this fragment
+		more-fragments flag - indicates last fragment 
+	reassembly combines internet datagrams that all have the same value for the four fields: identification, source, destination, protocol.
+	
+2.4	Gateways
+Implements internet protocol to forward datagrams between networks.  Higher level protocols need not be implemented.  Gateways also implement the gateway to gateway protocol to coordinate routing and other 
+internet control information.
+
+
+                   +-------------------------------+
+                   | Internet Protocol & ICMP & GGP|
+                   +-------------------------------+
+                           |                 |
+                 +---------------+   +---------------+
+                 |   Local Net   |   |   Local Net   |
+                 +---------------+   +---------------+
+
+                           Gateway Protocols
+
+                               Figure 3.
+
+3.1. Internet Header Format
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |Version|  IHL  |Type of Service|          Total Length         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |         Identification        |Flags|      Fragment Offset    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |  Time to Live |    Protocol   |         Header Checksum       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Source Address                          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    Destination Address                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    Options                    |    Padding    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                    Example Internet Datagram Header
+
+3.2. Discussion (reread this part for an overview)
+In general, an implementation must be conservative in its sending behavior, and liberal in its receiving behavior.  That is, it must be careful to send well-formed datagrams, but must accept
+any datagram that it can interpret (e.g., not object to technical errors where the meaning is still clear).
+
+3.3. Interfaces
+Internet protocol interfaces on one side to the local network and on the other side to either a higher level protocol or an application program.
+When the user sends a datagram, it executes the SEND call supplying all the arguments.  The internet protocol module, on receiving this call, checks the arguments and prepares and sends the message.
+When a datagram arrives at the internet protocol module from the local network, either there is a pending RECV call from the user addressed or there is not.
+
+	
